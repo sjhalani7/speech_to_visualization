@@ -1,3 +1,11 @@
+'''
+This file contains the code to:
+    (a) Convert audio file to text
+    (b) Process the text and convert it to SQL query
+    (c) Convert SQL query to matplotlib visualization
+* Works with SQLite queries
+'''
+
 import spacy
 import pandas as pd
 import sqlite3 as sql
@@ -8,12 +16,16 @@ from scipy import spatial
 from sent2vec.vectorizer import Vectorizer
 
 def speech_to_text(): #error installing pyaudio. Solve: Use prerecorded audio file in .WAV format
+    """
+    Converts audio file in .WAV format to text
+    """
     recognizer=sr.Recognizer()
     with sr.AudioFile("try.wav") as sound_source: #try.wav is an audio file containing the spoken statement
         audio = recognizer.record(sound_source)
         text = recognizer.recognize_google(audio)
         #print(text)
         return text
+    #if microphone through PyAudio worked:
     '''
         print("What would you want to learn: ")
         audio=recognizer.listen(sound_source)
@@ -26,21 +38,21 @@ def speech_to_text(): #error installing pyaudio. Solve: Use prerecorded audio fi
             print("Could not understand what you said.")
     return text
     '''
-nlp = spacy.load("en_core_web_sm")
-#doc = nlp("show me year where sales are more than 45000")
-#try show me year where sales are more than 60000 or show me sales after 2014
-#doc=nlp("show me sales prior to 2013")
+
+nlp = spacy.load("en_core_web_sm") #Load NLP Model
 
 doc=nlp(f"{speech_to_text()}") #doc established as processing the output of the speech to text function
 
-def tokenize():#returns sentence (from doc) as a list of tokens
+def tokenize():
+    """returns sentence (from doc) as a list of tokens"""
     token_list=[]
     for token in doc:
         #print(token.text, token.pos_, token.dep_)
         token_list.append(token.text)
     return token_list
 
-def remove_stopwords():#returns a list of tokens which are not stopwords.
+def remove_stopwords():
+    """returns a list of tokens which are not stopwords."""
     non_stop=[]
     for token in doc:
         if (token.is_stop==False):
@@ -50,18 +62,20 @@ def remove_stopwords():#returns a list of tokens which are not stopwords.
 
 #remove_stopwords()
 
-def lemmat(): #lemmatize non-stop word list
+def lemmat():
+    """lemmatize non-stop word list"""
     lemma_list=[]
     non_stop=remove_stopwords()
     for token in doc:
         if token in non_stop:
             lemma_list.append(token.lemma_)
 
-    return lemma_list #['sale', '2014', '.']
+    return lemma_list
 
 lemma_nl=lemmat() #lemmatized list of non-stopword tokens
 
-def named_entity_identifier(): #returns a list of all entities present in the doc(or sentence)
+def named_entity_identifier():
+    """returns a list of all entities present in the doc(or sentence)"""
     #Note: NER WILL need to be trained separately to effectively work with datasets
     return list(doc.ents)
     '''
@@ -77,7 +91,8 @@ def named_entity_identifier(): #returns a list of all entities present in the do
 #print(named_entity_identifier())
 
 
-def load_db(): #Load table as pandas dataframe
+def load_db():
+    """Load table as pandas dataframe"""
     conne = sql.connect("your_database.db", check_same_thread=False)
     query=pd.read_sql_query('''SELECT * FROM SalesD''', conne)
     df_sq=pd.DataFrame(query, columns = ['Year', 'Sales']) #assuming used my generated table.. else put column names
@@ -86,6 +101,12 @@ df_sq=load_db() #variable holding the table as a pd dataframe
 
 
 def sel_col(): #determine the column that the SELECT command will use. Eg: SELECT 'Sales or year or *'
+    """
+    Determines the COLUMN used by the SELECT statement in an SQL Query.
+    For now, only one column name is returned.
+    Allows us to form a basic SQL query
+    Eg: SELECT 'COLUMN' from table
+    """
     cols=list(df_sq.columns) #list of columns in the table
     doc2=nlp(str(cols)) #creating an nlp model for the column names for NLP processing
     lemma_cols=[] #list of columns with their lemmatized name
@@ -116,7 +137,14 @@ def sel_col(): #determine the column that the SELECT command will use. Eg: SELEC
 
 #select_col= sel_col()
 
-def wcol(): #where column, also gets inputted in the select statement. SELECT * from table "WHERE" column name= w
+def wcol():
+    """
+    Determines COLUMN used in the WHERE statement.
+    Eg: SELECT ___ from table WHERE 'COLUMN'=___
+    
+    Returns (COLUMN, VALUE) for processing the expression using the WHERE column
+    VALUE is the value on the right side of the comparison operator. Returned to work with w_expression() function.
+    """
     if(named_entity_identifier()==[]): #if NER does not identify an entity
         return 'N/A'
     cols = list(df_sq.columns) #list of columns
@@ -139,7 +167,13 @@ def wcol(): #where column, also gets inputted in the select statement. SELECT * 
 # Solution: named entity identifier....can modify spaCy module to add more of personalized types for
 # our specific dataset
 
-def w_expression(): #generate WHERE expression. WHERE "Sales=2014" or WHERE "Year>=2014"
+def w_expression():
+    """
+    Generates expression for the WHERE command.
+    Eg: SELECT ___ from table WHERE "Wcol()=value"
+    eg2: WHERE "Sales=2014" or WHERE "Year>=2014"
+    
+    """
     #process natural language expression to  give more than, less than or equal to a value (numeric).
     if(wcol()=='N/A'):
         return "N/A"
@@ -241,7 +275,10 @@ def w_expression(): #generate WHERE expression. WHERE "Sales=2014" or WHERE "Yea
 
 
 #print(w_expression())
-def sqlquery_1(): #generate SQL query
+def sqlquery_1():
+    """
+    Creates SQL Query and generates query result for data visualization
+    """
     q = "SELECT * FROM df_sq"
     psql.sqldf(q, globals())
     sq = lambda q: psql.sqldf(q, globals())
@@ -261,7 +298,11 @@ def sqlquery_1(): #generate SQL query
 q=sqlquery_1()
 print(q)
 
-def plot_sql(): #plot SQL query
+def plot_sql():
+    """
+    Uses matplotlib to plot the query
+    """
+
     dev_x=q[wcol()[0]]
     #dev_x=q[sel_col()]
     dev_y=q[sel_col()]
@@ -275,22 +316,5 @@ def plot_sql(): #plot SQL query
 
 
 plot_sql()
-
-#function to take input from microphone. Does not work due to errors installing PyAudio
-'''
-def speech_to_text(): #error installing pyaudio.
-    recognizer=sr.Recognizer()
-    with sr.Microphone() as sound_source:
-        print("What would you want to learn: ")
-        audio=recognizer.listen(sound_source)
-
-        try:
-            text=recognizer.recognize_google(audio)
-            #print(f"You said {text}")
-        except:
-            text='N/A'
-            print("Could not understand what you said.")
-    return text
-'''
 
 
